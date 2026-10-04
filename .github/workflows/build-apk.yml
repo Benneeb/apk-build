@@ -30,7 +30,7 @@ jobs:
           git clone --filter=blob:none "$GEMUERA_REPO" engine
           cd engine
           git checkout "$GEMUERA_COMMIT"
-          git apply ../patches/tw-startup-optimization.patch
+          python ../tools/apply_patch.py .
           git diff --check
           git status --short
 
