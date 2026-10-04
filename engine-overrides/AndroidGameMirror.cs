@@ -10,6 +10,7 @@ namespace gEmuera.GodotHost
     {
         const string RevisionMarkerName = ".gemuera-cache-revision";
         const string MirrorRevisionName = ".source_revision";
+        const string SourceGameRootName = ".source_game_root";
 
         public static string PrepareGameDirectory(string sourceGameDir, Action<string> status = null)
         {
@@ -34,6 +35,16 @@ namespace gEmuera.GodotHost
                 userRoot = ProjectSettings.GlobalizePath("user://");
             string mirrorRoot = Path.Combine(userRoot, "game-mirror", StablePathId(sourceGameDir));
             string mirrorRevision = Path.Combine(mirrorRoot, MirrorRevisionName);
+            string sourceRootFile = Path.Combine(mirrorRoot, SourceGameRootName);
+
+            // Always refresh the original external root marker. This also repairs
+            // mirrors produced by v1, so the image fix does not require deleting cache.
+            try
+            {
+                Directory.CreateDirectory(mirrorRoot);
+                File.WriteAllText(sourceRootFile, sourceGameDir, new UTF8Encoding(false));
+            }
+            catch { }
 
             if (IsUsableMirror(mirrorRoot, mirrorRevision, revision))
             {
@@ -50,6 +61,7 @@ namespace gEmuera.GodotHost
                     ClearMirrorPreservingUserData(mirrorRoot);
                 CopySourceTree(sourceGameDir, mirrorRoot, existed, status);
                 File.WriteAllText(mirrorRevision, revision, new UTF8Encoding(false));
+                File.WriteAllText(sourceRootFile, sourceGameDir, new UTF8Encoding(false));
                 if (IsUsableMirror(mirrorRoot, mirrorRevision, revision))
                     return NormalizeWithTrailingSlash(mirrorRoot);
             }
@@ -58,6 +70,53 @@ namespace gEmuera.GodotHost
                 global::GenericUtils.Warn($"[STARTUP] Android private mirror unavailable: {e.Message}");
             }
             return sourceGameDir;
+        }
+
+        /// <summary>
+        /// Resource images deliberately stay on shared storage. eraTWKR portrait packs
+        /// are commonly installed/updated independently of ERB/CSV, and mirroring them
+        /// made the engine use a stale or incomplete resources directory.
+        /// </summary>
+        public static string ResolveContentDirectory(string exeDir, string currentContentDir)
+        {
+            if (!string.Equals(OS.GetName(), "Android", StringComparison.OrdinalIgnoreCase))
+                return currentContentDir;
+            if (string.IsNullOrWhiteSpace(exeDir))
+                return currentContentDir;
+
+            try
+            {
+                string mirrorRoot = Path.GetFullPath(exeDir);
+                string sourceRootFile = Path.Combine(mirrorRoot, SourceGameRootName);
+                if (!File.Exists(sourceRootFile))
+                    return currentContentDir;
+
+                string sourceRoot = File.ReadAllText(sourceRootFile, Encoding.UTF8).Trim();
+                if (sourceRoot.Length == 0 || !Directory.Exists(sourceRoot))
+                    return currentContentDir;
+
+                string lower = Path.Combine(sourceRoot, "resources");
+                if (Directory.Exists(lower))
+                {
+                    string resolved = uEmuera.Utils.ResolveExistingDirectoryPath(lower);
+                    global::GenericUtils.Info($"[LOAD] Android external ContentDir={resolved}");
+                    return NormalizeWithTrailingSlash(resolved);
+                }
+
+                string upper = Path.Combine(sourceRoot, "RESOURCES");
+                if (Directory.Exists(upper))
+                {
+                    string resolved = uEmuera.Utils.ResolveExistingDirectoryPath(upper);
+                    global::GenericUtils.Info($"[LOAD] Android external ContentDir={resolved}");
+                    return NormalizeWithTrailingSlash(resolved);
+                }
+            }
+            catch (Exception e)
+            {
+                global::GenericUtils.Warn($"[STARTUP] External resources fallback unavailable: {e.Message}");
+            }
+
+            return currentContentDir;
         }
 
         static bool IsUsableMirror(string mirrorRoot, string revisionFile, string expectedRevision)
@@ -87,7 +146,8 @@ namespace gEmuera.GodotHost
             {
                 string name = Path.GetFileName(file);
                 if (string.Equals(name, "emuera.log", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(name, MirrorRevisionName, StringComparison.OrdinalIgnoreCase))
+                    string.Equals(name, MirrorRevisionName, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(name, SourceGameRootName, StringComparison.OrdinalIgnoreCase))
                     continue;
                 File.Delete(file);
             }
@@ -96,10 +156,21 @@ namespace gEmuera.GodotHost
         static void CopySourceTree(string sourceRoot, string targetRoot, bool preserveExistingUserData, Action<string> status)
         {
             int copied = 0;
+            int skippedResources = 0;
             foreach (string sourceFile in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
             {
                 string relative = Path.GetRelativePath(sourceRoot, sourceFile);
                 string first = FirstPathComponent(relative);
+
+                // Images/resource CSVs are read from their original external folder.
+                // This avoids duplicate storage and guarantees newly installed portraits
+                // are visible immediately without bumping the script cache revision.
+                if (IsResourceRootName(first))
+                {
+                    skippedResources++;
+                    continue;
+                }
+
                 if (preserveExistingUserData && IsPersistentRootName(first))
                     continue;
                 string targetFile = Path.Combine(targetRoot, relative);
@@ -111,8 +182,11 @@ namespace gEmuera.GodotHost
                 if ((copied % 250) == 0)
                     status?.Invoke($"Optimizing game files... {copied}");
             }
-            global::GenericUtils.Info($"[STARTUP] Android private mirror synchronized: files={copied}, source={sourceRoot}, target={targetRoot}");
+            global::GenericUtils.Info($"[STARTUP] Android private mirror synchronized: files={copied}, resource_files_external={skippedResources}, source={sourceRoot}, target={targetRoot}");
         }
+
+        static bool IsResourceRootName(string name) =>
+            string.Equals(name, "resources", StringComparison.OrdinalIgnoreCase);
 
         static bool IsPersistentRootName(string name) =>
             string.Equals(name, "sav", StringComparison.OrdinalIgnoreCase) ||
