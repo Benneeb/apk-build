@@ -1,0 +1,115 @@
+name: Build custom gEmuera APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - ".github/workflows/build-apk.yml"
+      - "patches/**"
+
+permissions:
+  contents: read
+
+env:
+  GEMUERA_REPO: https://github.com/wwwXiaoHan17/gEmuera.git
+  GEMUERA_COMMIT: ff3ce7e090f33c8f935878765e345e9cf1b8904c
+  GODOT_VERSION: "4.7-stable"
+
+jobs:
+  build-android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout build workspace
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned gEmuera
+        run: |
+          git clone --filter=blob:none "$GEMUERA_REPO" engine
+          cd engine
+          git checkout "$GEMUERA_COMMIT"
+          git apply ../patches/tw-startup-optimization.patch
+          git diff --check
+          git status --short
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up .NET 8 and 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Install .NET Android workload
+        run: |
+          dotnet --info
+          dotnet workload install android
+          sudo ln -sf "$(command -v pwsh)" /usr/local/bin/powershell
+
+      - name: Install Godot 4.7 .NET
+        run: |
+          curl -L --fail --retry 3             "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v4.7-stable_mono_linux_x86_64.zip"             -o /tmp/godot.zip
+          mkdir -p "$HOME/godot"
+          unzip -q /tmp/godot.zip -d "$HOME/godot"
+          GODOT_BIN="$(find "$HOME/godot" -type f -name 'Godot_v4.7-stable_mono_linux.x86_64' | head -n 1)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          sudo ln -sf "$GODOT_BIN" /usr/local/bin/godot
+          godot --version
+
+      - name: Install Godot .NET export templates
+        run: |
+          curl -L --fail --retry 3             "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v4.7-stable_mono_export_templates.tpz"             -o /tmp/templates.tpz
+          rm -rf /tmp/godot-templates
+          mkdir -p /tmp/godot-templates
+          unzip -q /tmp/templates.tpz -d /tmp/godot-templates
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.7.stable.mono"
+          mkdir -p "$TEMPLATE_DIR"
+          cp -a /tmp/godot-templates/templates/. "$TEMPLATE_DIR/"
+          test -f "$TEMPLATE_DIR/android_debug.apk"
+          test -f "$TEMPLATE_DIR/android_release.apk"
+
+      - name: Restore and compile Android C#
+        working-directory: engine
+        run: |
+          dotnet restore "gemuera-c#.csproj" -p:GodotTargetPlatform=android
+          dotnet build "gemuera-c#.csproj" -c Debug -p:GodotTargetPlatform=android --no-restore
+
+      - name: Import Godot project
+        working-directory: engine
+        run: |
+          timeout 120 godot --headless --editor --path . --quit-after 3 || true
+
+      - name: Export installable arm64 APK
+        working-directory: engine
+        run: |
+          mkdir -p build
+          godot --headless --path . --export-debug Android build/gEmuera-eraTWKR-startup-opt-arm64.apk
+          test -s build/gEmuera-eraTWKR-startup-opt-arm64.apk
+          sha256sum build/gEmuera-eraTWKR-startup-opt-arm64.apk | tee build/SHA256SUMS.txt
+          ls -lh build/
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: gEmuera-eraTWKR-startup-opt-arm64
+          path: |
+            engine/build/gEmuera-eraTWKR-startup-opt-arm64.apk
+            engine/build/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
