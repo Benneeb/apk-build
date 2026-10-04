@@ -38,21 +38,21 @@ replace_exact(
 
 replace_exact(
     "Scripts/GodotHost/EmueraStartupComponent.cs",
-    """\t\tif (string.IsNullOrEmpty(eraPath) || !uEmuera.Utils.DirectoryExists(eraPath))
-\t\t\teraPath = ProjectSettings.GlobalizePath(DefaultFallbackEraPath);
+    """        if (string.IsNullOrEmpty(eraPath) || !uEmuera.Utils.DirectoryExists(eraPath))
+            eraPath = ProjectSettings.GlobalizePath(DefaultFallbackEraPath);
 
-\t\tif (!string.IsNullOrEmpty(eraPath) && uEmuera.Utils.DirectoryExists(eraPath))""",
-    """\t\tif (string.IsNullOrEmpty(eraPath) || !uEmuera.Utils.DirectoryExists(eraPath))
-\t\t\teraPath = ProjectSettings.GlobalizePath(DefaultFallbackEraPath);
+        if (!string.IsNullOrEmpty(eraPath) && uEmuera.Utils.DirectoryExists(eraPath))""",
+    """        if (string.IsNullOrEmpty(eraPath) || !uEmuera.Utils.DirectoryExists(eraPath))
+            eraPath = ProjectSettings.GlobalizePath(DefaultFallbackEraPath);
 
-\t\tif (!string.IsNullOrEmpty(eraPath) && uEmuera.Utils.DirectoryExists(eraPath) &&
-\t\t\tstring.Equals(OS.GetName(), "Android", StringComparison.OrdinalIgnoreCase))
-\t\t{
-\t\t\teraPath = gEmuera.GodotHost.AndroidGameMirror.PrepareGameDirectory(
-\t\t\t\teraPath, status => EmitStatus(status));
-\t\t}
+        if (!string.IsNullOrEmpty(eraPath) && uEmuera.Utils.DirectoryExists(eraPath) &&
+            string.Equals(OS.GetName(), "Android", StringComparison.OrdinalIgnoreCase))
+        {
+            eraPath = gEmuera.GodotHost.AndroidGameMirror.PrepareGameDirectory(
+                eraPath, status => EmitStatus(status));
+        }
 
-\t\tif (!string.IsNullOrEmpty(eraPath) && uEmuera.Utils.DirectoryExists(eraPath))"""
+        if (!string.IsNullOrEmpty(eraPath) && uEmuera.Utils.DirectoryExists(eraPath))"""
 )
 
 replace_exact(
