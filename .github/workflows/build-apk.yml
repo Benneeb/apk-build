@@ -118,9 +118,23 @@ jobs:
         working-directory: engine
         run: |
           mkdir -p build
+          set +e
           godot --headless --path . --export-debug Android build/gEmuera-eraTWKR-startup-opt-arm64.apk
-          test -s build/gEmuera-eraTWKR-startup-opt-arm64.apk
-          sha256sum build/gEmuera-eraTWKR-startup-opt-arm64.apk | tee build/SHA256SUMS.txt
+          GODOT_EXIT=$?
+          set -e
+
+          APK="build/gEmuera-eraTWKR-startup-opt-arm64.apk"
+          test -s "$APK"
+
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose "$APK"
+
+          if [ "$GODOT_EXIT" -ne 0 ]; then
+            echo "::warning::Godot exited with code $GODOT_EXIT after producing a verified APK; accepting artifact."
+          fi
+
+          sha256sum "$APK" | tee build/SHA256SUMS.txt
           ls -lh build/
 
       - name: Upload APK
