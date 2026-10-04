@@ -219,11 +219,11 @@ replace_exact(
 # Quick command overlay: preserve user settings but enforce phone-friendly minima.
 replace_exact(
     "Scripts/Panels/QuickButtons.cs",
-    """	int EffectiveButtonWidth => ConfiguredButtonWidth;
+    """	int EffectiveFontSize => fontSize > 0 ? fontSize : ConfiguredFontSize;
 
-	int QuickButtonHeight => EffectiveFontSize * 3 + QuickButtonPadding * 2;
+	int EffectiveButtonWidth => ConfiguredButtonWidth;
 
-	int EffectiveFontSize => fontSize > 0 ? fontSize : ConfiguredFontSize;""",
+	int QuickButtonHeight => EffectiveFontSize * 3 + QuickButtonPadding * 2;""",
     """	int EffectiveButtonWidth => OS.HasFeature("mobile") ? Mathf.Max(ConfiguredButtonWidth, 120) : ConfiguredButtonWidth;
 
 	int QuickButtonHeight => OS.HasFeature("mobile")
