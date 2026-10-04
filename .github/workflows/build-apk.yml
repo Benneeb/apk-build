@@ -106,7 +106,11 @@ jobs:
           dotnet --version
           dotnet restore "gemuera-c#.csproj" -p:GodotTargetPlatform=android
 
-          AAR="$(find "$HOME/.nuget/packages/sqlitepclraw.lib.e_sqlite3.android" -type f -name '*.aar' | head -n 1)"
+          curl -L --fail --retry 3             "https://www.nuget.org/api/v2/package/SQLitePCLRaw.lib.e_sqlite3.android/2.1.12"             -o /tmp/sqlite-android.nupkg
+          rm -rf /tmp/sqlite-android
+          mkdir -p /tmp/sqlite-android
+          unzip -q /tmp/sqlite-android.nupkg -d /tmp/sqlite-android
+          AAR="$(find /tmp/sqlite-android -type f -name '*.aar' | head -n 1)"
           test -f "$AAR"
           mkdir -p NativeLibs/android/arm64-v8a
           unzip -p "$AAR" 'jni/arm64-v8a/libe_sqlite3.so' > NativeLibs/android/arm64-v8a/libe_sqlite3.so
