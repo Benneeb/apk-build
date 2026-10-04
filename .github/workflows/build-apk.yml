@@ -95,7 +95,23 @@ jobs:
       - name: Restore and compile Android C#
         working-directory: engine
         run: |
+          cat > global.json <<'EOF'
+          {
+            "sdk": {
+              "version": "9.0.318",
+              "rollForward": "latestPatch"
+            }
+          }
+          EOF
+          dotnet --version
           dotnet restore "gemuera-c#.csproj" -p:GodotTargetPlatform=android
+
+          AAR="$(find "$HOME/.nuget/packages/sqlitepclraw.lib.e_sqlite3.android" -type f -name '*.aar' | head -n 1)"
+          test -f "$AAR"
+          mkdir -p NativeLibs/android/arm64-v8a
+          unzip -p "$AAR" 'jni/arm64-v8a/libe_sqlite3.so' > NativeLibs/android/arm64-v8a/libe_sqlite3.so
+          test -s NativeLibs/android/arm64-v8a/libe_sqlite3.so
+
           dotnet build "gemuera-c#.csproj" -c Debug -p:GodotTargetPlatform=android --no-restore
 
       - name: Import Godot project
