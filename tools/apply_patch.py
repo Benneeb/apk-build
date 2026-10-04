@@ -84,6 +84,13 @@ replace_exact(
                             $"{DateTime.UtcNow:O}\\t{stage}\\t{deltaMs}\\t{ms}\\n");"""
 )
 
+
+replace_exact(
+    "gemuera-c#.csproj",
+    """    <None Include="NativeLibs\\android\\arm64-v8a\\libe_sqlite3.so" CopyToOutputDirectory="PreserveNewest" TargetPath="libe_sqlite3.so" />""",
+    """    <None Include="NativeLibs\\android\\arm64-v8a\\libe_sqlite3.so" Condition="Exists('NativeLibs\\android\\arm64-v8a\\libe_sqlite3.so')" CopyToOutputDirectory="PreserveNewest" TargetPath="libe_sqlite3.so" />"""
+)
+
 src = workspace / "engine-overrides/AndroidGameMirror.cs"
 dst = root / "Scripts/GodotHost/AndroidGameMirror.cs"
 dst.parent.mkdir(parents=True, exist_ok=True)
